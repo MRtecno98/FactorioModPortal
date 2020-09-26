@@ -1,3 +1,4 @@
 compile/
 mod_cache/
 userdata.json
+__pycache__/

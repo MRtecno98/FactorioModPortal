@@ -1,6 +1,7 @@
 import requests, json, os, sys, shutil
 
 MAX_RELEASES_DISPLAYED = 3
+MAX_WORDS_PER_LINE = 6
 
 title = """
   _____          _             _         __  __           _   ____            _        _ 
@@ -85,14 +86,34 @@ def checkCredentialsSet() :
 def checkFactorioPathSet() :
 	global factorio_path
 	return factorio_path != ""
+	
+def splitWordLines(text, words_per_line=MAX_WORDS_PER_LINE) :
+	words = text.split(" ")
+	splitted = list()
+	
+	c = 0
+	temp = list()
+	for word in words :
+		if c == words_per_line :
+			splitted.append(" ".join(temp))
+			temp = list()
+			c = 0
+		temp.append(word)
+		c+=1
+		
+	splitted.append(" ".join(temp))
+		
+	return splitted
 
 def displayModInfo(packet, max_releases=MAX_RELEASES_DISPLAYED) :
 	print("Name: " + packet["title"])
 	print("Owner: " + packet["owner"])
 	print("Downloads: " + str(packet["downloads_count"]))
 	print("ID: " + packet["name"])
-	print("Description: " + packet["summary"])
-	print("Releases:")
+	print("\nDescription: ")
+	print("\n".join(splitWordLines(packet["summary"])))
+	
+	print("\nReleases:")
 
 	releases = packet["releases"]
 	releases.reverse()
@@ -102,7 +123,7 @@ def displayModInfo(packet, max_releases=MAX_RELEASES_DISPLAYED) :
 	tab = " "*4
 	i = 0
 	for x in releases :
-		if i == max_releases and len(releases) - i != 0 :
+		if i == max_releases :
 			print(tab + "[" + str(len(releases) - i) + " more...]")
 			break
 		
@@ -114,6 +135,11 @@ def displayModInfo(packet, max_releases=MAX_RELEASES_DISPLAYED) :
 
 def checkDirs() :
 	os.makedirs("mod_cache", exist_ok=True)
+	
+def clearCache() :
+	if os.path.isdir("mod_cache") :
+		shutil.rmtree("mod_cache")
+		checkDirs()
 
 def downloadMod(packet) :
 	global username, token
@@ -174,6 +200,7 @@ def start() :
 	print("3) View mod info")
 	print("4) Select Factorio installation")
 	print("5) Set user data")
+	print("6) Clear cache")
 	print("0) Exit")
 
 	opt = 0
@@ -189,7 +216,7 @@ def start() :
 	if opt == 0 :
 		sys.exit(0)
 
-	if opt == 1 :
+	elif opt == 1 :
 		if (not checkCredentialsSet()) or (not checkFactorioPathSet()) :
 			print("You need to set the credentials and the factorio path in order to install a mod!")
 			return
@@ -202,7 +229,7 @@ def start() :
 		
 		installMod(downloadMod(packet))
 		
-	if opt == 2:
+	elif opt == 2:
 		if not checkCredentialsSet() :
 			print("You need to set the credentials in order to download a mod!")
 			return
@@ -215,7 +242,7 @@ def start() :
 
 		downloadMod(packet)
 	
-	if opt == 3:
+	elif opt == 3:
 		try :
 			packet = askModName()
 			print()
@@ -224,7 +251,7 @@ def start() :
 		
 		displayModInfo(packet)
 	
-	if opt == 4:
+	elif opt == 4:
 		if checkFactorioPathSet() :
 			print("\nIMPORTANT: You'll overwrite the previous path")
 			while True:
@@ -239,7 +266,7 @@ def start() :
 		
 		setFactorioPath()
 	
-	if opt == 5:
+	elif opt == 5:
 		if checkCredentialsSet() :
 			print("\nIMPORTANT: You'll overwrite the previous credentials")
 			while True:
@@ -250,6 +277,11 @@ def start() :
 					return
 
 		login()
+		
+	elif opt == 6:
+		print("Clearing mod cache...")
+		clearCache()
+		print("Done")
 
 try :	
 	if __name__ == "__main__" :
