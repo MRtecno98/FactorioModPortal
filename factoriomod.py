@@ -144,7 +144,7 @@ def clearCache() :
 def downloadMod(packet) :
 	global username, token
 	
-	displayModInfo(packet, max_releases=-1)
+	displayModInfo(packet)
 	vers = ""
 	while True :
 		check = False
@@ -245,10 +245,21 @@ def start() :
 	elif opt == 3:
 		try :
 			packet = askModName()
+			
+			while True:
+				try :
+					rels = input(f"Releases to print(-1 for all, default {MAX_RELEASES_DISPLAYED}): ")
+					rels = -1 if rels == "" else int(rels)
+					break
+				except ValueError:
+					continue
+		
 			print()
 		except KeyboardInterrupt :
 			return
-		
+
+		   
+						
 		displayModInfo(packet)
 	
 	elif opt == 4:
@@ -283,7 +294,7 @@ def start() :
 		clearCache()
 		print("Done")
 
-try :	
+try :   
 	if __name__ == "__main__" :
 		print(title)
 		checkDirs()
