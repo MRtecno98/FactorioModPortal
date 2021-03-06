@@ -159,13 +159,13 @@ def downloadMod(packet) :
 	release = None
 	for rl in  packet["releases"] :
 		if rl["version"] == vers :
-				release = rl
-	
-	url = "http://mods.factorio.com" + rl["download_url"] + "?username=" + username + "&token=" + token
+				release = dict(rl)
+		
+	url = "http://mods.factorio.com" + release["download_url"] + "?username=" + username + "&token=" + token
 	
 	request = requests.get(url)
 	request.raise_for_status()
-	with open("mod_cache" + os.sep + rl["file_name"], "wb") as file:
+	with open("mod_cache" + os.sep + release["file_name"], "wb") as file:
 		for chunk in request.iter_content(4096) :
 			file.write(chunk)
 
