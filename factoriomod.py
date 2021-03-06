@@ -170,7 +170,7 @@ def downloadMod(packet) :
 			file.write(chunk)
 
 	print("Mod downloaded successfully")
-	return rl["file_name"]
+	return release["file_name"]
 
 def installMod(filename) :
 	global factorio_path
