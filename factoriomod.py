@@ -1,4 +1,4 @@
-import requests, json, os, sys, shutil
+import requests, json, os, sys, shutil, traceback
 
 MAX_RELEASES_DISPLAYED = 3
 MAX_WORDS_PER_LINE = 6
@@ -302,4 +302,12 @@ try :
 		while True :
 			start()
 except KeyboardInterrupt:
+	sys.exit(1)
+except Exception as exc:
+	print("\nAn error has occurred while executing the script")
+	print("Dumping traceback below\n")
+	
+	traceback.print_tb(exc.__traceback__)
+	
+	input("\nPress enter to terminate\n")
 	sys.exit(1)
