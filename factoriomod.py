@@ -223,40 +223,77 @@ def downloadMod(packet,latest=False) :
 		for chunk in request.iter_content(4096) :
 			file.write(chunk)
 
-
-	print("Mod downloaded successfully")
+	print("Success")
 	return release["file_name"]
-def download_recursive_mod(mod_name,install_mod=False,visited_set=None):
-    if visited_set is None:
-        visited_set = set()
-    if mod_name in visited_set:
-        return
-    visited_set.add(mod_name)
-    
-    mod_info = getModInfo(mod_name,detailed=True)
-    print(f"Downloading {mod_name}...")
-    try:
-        file_name = downloadMod(mod_info,latest=True)
-        if install_mod:
-            installMod(file_name)
-    except Exception as e:
-        print("#"*33)
-        print(f"Error in downloading {mod_name}")
-        print(e)
-        print("#"*33)
-        return
 
-    versions_idx = list(range(len(mod_info["releases"])))
-    versions_idx.sort(key=lambda x: mod_info["releases"][x]["version"],reverse=True)
-    rel = mod_info["releases"][versions_idx[0]]
-    mod_rel_info = rel['info_json']
-    if 'dependencies' in mod_rel_info:
-        for dep_code in mod_rel_info['dependencies']:
+def parse_dep_code(code):
+	res = {"optional": False}
 
-            for dep in dep_code.split(" "):
+	if code.replace("(", "").startswith('?'):
+		res["optional"] = True
+		code = code.replace("(?)", "") \
+			.replace("(?)!", "") \
+			.replace("?", "").strip()
 
-                if dep.isalnum() and dep!='base':
-                    download_recursive_mod(dep,visited_set=visited_set,install_mod=install_mod)
+	splitted = code.split(" ")
+
+	if '?' in splitted[0]:
+		res["optional"] = True
+		del splitted[0]
+		
+	if '!' in splitted[0]:
+		del splitted[0]
+	
+	res["name"] = str()
+	for i in range(len(splitted)):
+		elem = splitted[i]
+
+		if elem in (">", ">=", "<", "<="):
+			res["sign"] = elem
+			res["version"] = splitted[i + 1]
+			break
+		res["name"] += elem + " "
+
+	res["name"] = res["name"][:-1]
+
+	return res
+
+def download_recursive_mod(mod_name, install_mod=False, visited_set=None):
+	visited_set = visited_set if visited_set else set()
+
+	if mod_name in visited_set:
+		return
+	visited_set.add(mod_name)
+	
+	mod_info = getModInfo(mod_name, detailed=True)
+
+	if "message" in mod_info.keys():
+		print(f"Could not download {mod_name}: error: " + mod_info["message"])
+		return
+
+	versions_ids = list(range(len(mod_info["releases"])))
+	versions_ids.sort(
+		key=lambda x: mod_info["releases"][x]["version"], reverse=True)
+
+	rel = mod_info["releases"][versions_ids[0]]
+	mod_rel_info = rel['info_json']
+
+	print(f"Downloading {mod_name}... ", end='', flush=True)
+	file_name = downloadMod(mod_info, latest=True)
+
+	if 'dependencies' in mod_rel_info:
+		for dep_code in mod_rel_info['dependencies']:
+			dep = parse_dep_code(dep_code)
+			if not dep["optional"] and dep["name"] != 'base':
+					download_recursive_mod(dep["name"],
+						visited_set=visited_set,
+						install_mod=install_mod)
+
+	# Install the mod only after installing dependencies
+	# This way we always ensure that no mod is installed without its deps
+	if install_mod:
+		installMod(file_name)
+
 def installMod(filename) :
 	global factorio_path
 	
