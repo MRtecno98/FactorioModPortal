@@ -59,6 +59,7 @@ def setFactorioPath() :
 	factorio_path = path
 	saveUserdata()
 	print("Path changed!")
+
 def checkFactorioPath(path):
 	return os.path.isdir(path) and  ("mods" and "player-data.json" in os.listdir(path))
 			
@@ -83,6 +84,7 @@ def loadUserdata() :
 		username = data.get("username", "")
 		token = data.get("token", "")
 		factorio_path = data.get("path", "")
+
 	if not checkFactorioPathSet():
 		auto_path = "."
 		if platform.system() == 'Darwin':
@@ -93,9 +95,6 @@ def loadUserdata() :
 			auto_path = os.path.join(Path.home(),"AppData/Roaming/Factorio")
 		if checkFactorioPath(auto_path):
 			factorio_path = auto_path
-			
-		
-
 
 def checkCredentialsSet() :
 	global username, token
@@ -158,25 +157,26 @@ def clearCache() :
 	if os.path.isdir("mod_cache") :
 		shutil.rmtree("mod_cache")
 		checkDirs()
+		
 def hash_file(filename):
-   """"This function returns the SHA-1 hash
-   of the file passed into it"""
+	""""This function returns the SHA-1 hash
+	of the file passed into it"""
 
-   # make a hash object
-   h = hashlib.sha1()
+	# make a hash object
+	h = hashlib.sha1()
 
-   # open file for reading in binary mode
-   with open(filename,'rb') as file:
+	# open file for reading in binary mode
+	with open(filename,'rb') as file:
 
-       # loop till the end of the file
-       chunk = 0
-       while chunk != b'':
-           # read only 1024 bytes at a time
-           chunk = file.read(1024)
-           h.update(chunk)
+		# loop till the end of the file
+		chunk = 0
+		while chunk != b'':
+			# read only 1024 bytes at a time
+			chunk = file.read(1024)
+			h.update(chunk)
 
-   # return the hex representation of digest
-   return h.hexdigest()
+	# return the hex representation of digest
+	return h.hexdigest()
 
 def downloadMod(packet,latest=False) :
 	global username, token
@@ -204,16 +204,18 @@ def downloadMod(packet,latest=False) :
 		
 	url = "http://mods.factorio.com" + release["download_url"] + "?username=" + username + "&token=" + token
 	output_path = "mod_cache" + os.sep + release["file_name"]
+
 	if os.path.isfile(output_path):
 		sha1 = release['sha1']
-		if sha1==hash_file(output_path):
+
+		if sha1 == hash_file(output_path):
 			print('Using cached version')
 			return release["file_name"]
-		
+
 	request = requests.get(url)
 	request.raise_for_status()
+
 	with open(output_path, "wb") as file:
-		
 		for chunk in request.iter_content(4096) :
 			file.write(chunk)
 
@@ -268,7 +270,6 @@ def askModName(message="Insert mod name: ", error_message="Not found, try again"
 			continue
 		break
 	return packet
-		
 
 def start() :
 	global username, token, factorio_path
@@ -295,17 +296,15 @@ def start() :
 	if opt == 0 :
 		sys.exit(0)
 
-	if opt == 1 or opt ==2:
+	if opt in (1, 2):
 		if not checkCredentialsSet() :
 			print("You need to set the credentials in order to download a mod!")
 			return
+
 		if opt == 1 :
 			if not checkFactorioPathSet() :
 				print("You need to set the factorio path in order to install a mod!")
 				return
-			install_mod = True
-		elif opt == 2:
-			install_mod = False
 			
 		try :
 			packet = askModName()
@@ -314,10 +313,7 @@ def start() :
 			return
 
 		# downloadMod(packet)		
-		download_recursive_mod(packet['name'],install_mod=install_mod)
-		
-	
-		
+		download_recursive_mod(packet['name'], install_mod=opt == 1)
 	
 	elif opt == 3:
 		try :
@@ -376,6 +372,7 @@ try :
 		print(title)
 		checkDirs()
 		loadUserdata()
+
 		while True :
 			start()
 except KeyboardInterrupt:
