@@ -17,8 +17,7 @@ token = ""
 factorio_path = ""
 
 def getModInfo(name,detailed=False) :
-	query = "https://mods.factorio.com/api/mods/" + name.replace(" ", "%20")
-	if detailed: query+='/full'
+	query = "https://mods.factorio.com/api/mods/" + name.replace(" ", "%20") + ("/full" if detailed else "")
 	request = requests.get(query)
 	
 	result = json.loads(request.text)
@@ -27,7 +26,7 @@ def getModInfo(name,detailed=False) :
 def isErrorPacket(modpacket) :
 	return "message" in modpacket.keys()
 
-def login() :
+def login():
 	global username, token
 	
 	print("Insert below your Factorio account data (NOT NECESSARALY PREMIUM)")
@@ -183,6 +182,11 @@ def downloadMod(packet,latest=False) :
 
 	vers = ""
 	if not latest:
+		# Inform the user about available releases 
+		# when going interactive mode
+		displayModInfo(packet)
+		print()
+
 		while True :
 			check = False
 			vers = input("\nSelect release to download: ").strip()
