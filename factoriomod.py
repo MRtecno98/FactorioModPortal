@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.table import Table
 
 MAX_RELEASES_DISPLAYED = 6
-MAX_WORDS_PER_LINE = 6
+MAX_WORDS_PER_LINE = 7
 
 cli = Console()
 
