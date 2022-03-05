@@ -185,27 +185,10 @@ def hash_file(filename):
 	# return the hex representation of digest
 	return h.hexdigest()
 
-def downloadMod(packet,latest=False) :
+def downloadMod(packet, vers=None) :
 	global username, token
-
-	vers = ""
-	if not latest:
-		# Inform the user about available releases
-		# when going interactive mode
-		displayModInfo(packet)
-		print()
-
-		while True :
-			check = False
-			cli.print("[bold green]\nSelect release to download: [/bold green]", end="")
-			vers = input().strip()
-			for rl in packet["releases"] :
-				if rl["version"] == vers :
-					check = True
-			if check :
-				break
-			cli.print("[bold red]!!! Version not released !!![/bold red]")
-	else:
+	
+	if not vers:
 		versions = [rl["version"] for rl in packet["releases"]]
 		versions.sort()
 		vers = versions[-1]
@@ -267,14 +250,34 @@ def parse_dep_code(code):
 
 	return res
 
-def download_recursive_mod(mod_name, install_mod=False, visited_set=None):
+def download_recursive_mod(mod_name, vers="latest", install_mod=False, visited_set=None):
 	visited_set = visited_set if visited_set else set()
-
+	
 	if mod_name in visited_set:
 		return
 	visited_set.add(mod_name)
 
 	mod_info = getModInfo(mod_name, detailed=True)
+	
+	if not vers:
+		# Inform the user about available releases
+		# when going interactive mode
+		displayModInfo(mod_info)
+		print()
+
+		while True :
+			check = False
+			cli.print("[bold green]\nSelect release to download: [/bold green]", end="")
+			vers = input().strip()
+			print()
+			for rl in mod_info["releases"] :
+				if rl["version"] == vers :
+					check = True
+			if check :
+				break
+			cli.print("[bold red]!!! Version not released !!![/bold red]")
+	elif vers == "latest":
+		vers = None
 
 	if "message" in mod_info.keys():
 		cli.print(f"Could not download [bold red]{mod_name}[/bold red]: error: [bold red]{mod_info['message']}[/bold red]")
@@ -288,7 +291,7 @@ def download_recursive_mod(mod_name, install_mod=False, visited_set=None):
 	mod_rel_info = rel["info_json"]
 
 	print(f"Downloading {mod_name}... ", end="", flush=True)
-	file_name = downloadMod(mod_info, latest=True)
+	file_name = downloadMod(mod_info, vers=vers)
 
 	if "dependencies" in mod_rel_info:
 		for dep_code in mod_rel_info["dependencies"]:
@@ -321,10 +324,8 @@ def askModName(message="[bold green]Insert mod name: [/bold green]", error_messa
 			continue
 		break
 	return packet
-
-def start() :
-	global username, token, factorio_path
-
+	
+def help():
 	print("\n")
 	cli.print("[bold yellow]1)[/bold yellow] Install mod from mod portal")
 	cli.print("[bold yellow]2)[/bold yellow] Download mod from mod portal")
@@ -333,16 +334,21 @@ def start() :
 	cli.print("[bold yellow]5)[/bold yellow] Set user data")
 	cli.print("[bold yellow]6)[/bold yellow] Clear cache")
 	cli.print("[bold yellow]0)[/bold yellow] Exit")
+	cli.print("\n[bold yellow]Enter nothing to print this help again[/bold yellow]")
 
+def start() :
+	global username, token, factorio_path	
+	
 	opt = 0
 	while True :
 		try :
-			cli.print("[bold green]-> [/bold green]", end="")
+			cli.print("\n[bold green]-> [/bold green]", end="")
 			opt = int(input())
 			break
 		except KeyboardInterrupt :
 			sys.exit(0)
 		except :
+			help()
 			continue
 
 	if opt == 0 :
@@ -365,7 +371,7 @@ def start() :
 			return
 
 		# downloadMod(packet)
-		download_recursive_mod(packet['name'], install_mod=opt == 1)
+		download_recursive_mod(packet['name'], install_mod=opt == 1, vers=None)
 
 	elif opt == 3:
 		try :
@@ -382,8 +388,6 @@ def start() :
 			print()
 		except KeyboardInterrupt :
 			return
-
-
 
 		displayModInfo(packet)
 
@@ -426,7 +430,8 @@ try :
 		print(title)
 		checkDirs()
 		loadUserdata()
-
+		
+		help()
 		while True :
 			start()
 except KeyboardInterrupt:
@@ -436,6 +441,7 @@ except Exception as exc:
 	print("Dumping traceback below\n")
 
 	traceback.print_tb(exc.__traceback__)
+	print('  ' + str(exc))
 
 	input("\nPress enter to terminate\n")
 	sys.exit(1)
