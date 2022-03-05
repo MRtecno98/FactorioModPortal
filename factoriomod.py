@@ -1,5 +1,5 @@
-import requests, json, os, sys, shutil, traceback
-
+import requests, json, os, sys, shutil, traceback, hashlib, platform
+from pathlib import Path
 MAX_RELEASES_DISPLAYED = 3
 MAX_WORDS_PER_LINE = 6
 
@@ -16,15 +16,17 @@ token = ""
 
 factorio_path = ""
 
-def getModInfo(name) :
-	request = requests.get("https://mods.factorio.com/api/mods/" + name.replace(" ", "%20"))
+def getModInfo(name,detailed=False) :
+	query = "https://mods.factorio.com/api/mods/" + name.replace(" ", "%20") + ("/full" if detailed else "")
+	request = requests.get(query)
+	
 	result = json.loads(request.text)
 	return result
 
 def isErrorPacket(modpacket) :
 	return "message" in modpacket.keys()
 
-def login() :
+def login():
 	global username, token
 	
 	print("Insert below your Factorio account data (NOT NECESSARALY PREMIUM)")
@@ -57,6 +59,9 @@ def setFactorioPath() :
 	saveUserdata()
 	print("Path changed!")
 
+def checkFactorioPath(path):
+	return os.path.isdir(path) and  ("mods" and "player-data.json" in os.listdir(path))
+			
 def saveUserdata() :
 	global username, token, factorio_path
 	
@@ -78,6 +83,17 @@ def loadUserdata() :
 		username = data.get("username", "")
 		token = data.get("token", "")
 		factorio_path = data.get("path", "")
+
+	if not checkFactorioPathSet():
+		auto_path = "."
+		if platform.system() == 'Darwin':
+			auto_path = os.path.join(Path.home(),"Library/Application Support/factorio")
+		elif platform.system() == "Linux":
+			auto_path = os.path.join(Path.home(),"factorio")
+		elif platform.system() == 'Windows':
+			auto_path = os.path.join(Path.home(),"AppData/Roaming/Factorio")
+		if checkFactorioPath(auto_path):
+			factorio_path = auto_path
 
 def checkCredentialsSet() :
 	global username, token
@@ -140,37 +156,143 @@ def clearCache() :
 	if os.path.isdir("mod_cache") :
 		shutil.rmtree("mod_cache")
 		checkDirs()
-
-def downloadMod(packet) :
-	global username, token
-	
-	displayModInfo(packet)
-	vers = ""
-	while True :
-		check = False
-		vers = input("\nSelect release to download: ").strip()
-		for rl in packet["releases"] :
-			if rl["version"] == vers :
-				check = True
-		if check :
-			break
-		print("Version not released")
 		
+def hash_file(filename):
+	""""This function returns the SHA-1 hash
+	of the file passed into it"""
+
+	# make a hash object
+	h = hashlib.sha1()
+
+	# open file for reading in binary mode
+	with open(filename,'rb') as file:
+
+		# loop till the end of the file
+		chunk = 0
+		while chunk != b'':
+			# read only 1024 bytes at a time
+			chunk = file.read(1024)
+			h.update(chunk)
+
+	# return the hex representation of digest
+	return h.hexdigest()
+
+def downloadMod(packet,latest=False) :
+	global username, token
+
+	vers = ""
+	if not latest:
+		# Inform the user about available releases 
+		# when going interactive mode
+		displayModInfo(packet)
+		print()
+
+		while True :
+			check = False
+			vers = input("\nSelect release to download: ").strip()
+			for rl in packet["releases"] :
+				if rl["version"] == vers :
+					check = True
+			if check :
+				break
+			print("Version not released")
+	else:
+		versions = [rl["version"] for rl in packet["releases"]]
+		versions.sort()
+		vers = versions[-1]
+
 	release = None
 	for rl in  packet["releases"] :
 		if rl["version"] == vers :
 				release = dict(rl)
 		
 	url = "http://mods.factorio.com" + release["download_url"] + "?username=" + username + "&token=" + token
-	
+	output_path = "mod_cache" + os.sep + release["file_name"]
+
+	if os.path.isfile(output_path):
+		sha1 = release['sha1']
+
+		if sha1 == hash_file(output_path):
+			print('Using cached version')
+			return release["file_name"]
+
 	request = requests.get(url)
 	request.raise_for_status()
-	with open("mod_cache" + os.sep + release["file_name"], "wb") as file:
+
+	with open(output_path, "wb") as file:
 		for chunk in request.iter_content(4096) :
 			file.write(chunk)
 
-	print("Mod downloaded successfully")
+	print("Success")
 	return release["file_name"]
+
+def parse_dep_code(code):
+	res = {"optional": False}
+
+	if code.replace("(", "").startswith('?'):
+		res["optional"] = True
+		code = code.replace("(?)", "") \
+			.replace("(?)!", "") \
+			.replace("?", "").strip()
+
+	splitted = code.split(" ")
+
+	if '?' in splitted[0]:
+		res["optional"] = True
+		del splitted[0]
+		
+	if '!' in splitted[0]:
+		del splitted[0]
+	
+	res["name"] = str()
+	for i in range(len(splitted)):
+		elem = splitted[i]
+
+		if elem in (">", ">=", "<", "<="):
+			res["sign"] = elem
+			res["version"] = splitted[i + 1]
+			break
+		res["name"] += elem + " "
+
+	res["name"] = res["name"][:-1]
+
+	return res
+
+def download_recursive_mod(mod_name, install_mod=False, visited_set=None):
+	visited_set = visited_set if visited_set else set()
+
+	if mod_name in visited_set:
+		return
+	visited_set.add(mod_name)
+	
+	mod_info = getModInfo(mod_name, detailed=True)
+
+	if "message" in mod_info.keys():
+		print(f"Could not download {mod_name}: error: " + mod_info["message"])
+		return
+
+	versions_ids = list(range(len(mod_info["releases"])))
+	versions_ids.sort(
+		key=lambda x: mod_info["releases"][x]["version"], reverse=True)
+
+	rel = mod_info["releases"][versions_ids[0]]
+	mod_rel_info = rel['info_json']
+
+	print(f"Downloading {mod_name}... ", end='', flush=True)
+	file_name = downloadMod(mod_info, latest=True)
+
+	if 'dependencies' in mod_rel_info:
+		for dep_code in mod_rel_info['dependencies']:
+			dep = parse_dep_code(dep_code)
+			if not dep["optional"] and dep["name"] != 'base':
+					download_recursive_mod(dep["name"],
+						visited_set=visited_set,
+						install_mod=install_mod)
+
+	# Install the mod only after installing dependencies
+	# This way we always ensure that no mod is installed without its deps
+	if install_mod:
+		installMod(file_name)
 
 def installMod(filename) :
 	global factorio_path
@@ -189,7 +311,6 @@ def askModName(message="Insert mod name: ", error_message="Not found, try again"
 			continue
 		break
 	return packet
-		
 
 def start() :
 	global username, token, factorio_path
@@ -216,31 +337,24 @@ def start() :
 	if opt == 0 :
 		sys.exit(0)
 
-	elif opt == 1 :
-		if (not checkCredentialsSet()) or (not checkFactorioPathSet()) :
-			print("You need to set the credentials and the factorio path in order to install a mod!")
-			return
-		
-		try :
-			packet = askModName()
-			print()
-		except KeyboardInterrupt :
-			return
-		
-		installMod(downloadMod(packet))
-		
-	elif opt == 2:
+	if opt in (1, 2):
 		if not checkCredentialsSet() :
 			print("You need to set the credentials in order to download a mod!")
 			return
-		
+
+		if opt == 1 :
+			if not checkFactorioPathSet() :
+				print("You need to set the factorio path in order to install a mod!")
+				return
+			
 		try :
 			packet = askModName()
 			print()
 		except KeyboardInterrupt :
 			return
 
-		downloadMod(packet)
+		# downloadMod(packet)		
+		download_recursive_mod(packet['name'], install_mod=opt == 1)
 	
 	elif opt == 3:
 		try :
@@ -299,6 +413,7 @@ try :
 		print(title)
 		checkDirs()
 		loadUserdata()
+
 		while True :
 			start()
 except KeyboardInterrupt:
