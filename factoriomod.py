@@ -1,8 +1,9 @@
 import requests, json, os, sys, shutil, traceback, hashlib, platform
 from pathlib import Path
 from rich.console import Console
+from rich.table import Table
 
-MAX_RELEASES_DISPLAYED = 3
+MAX_RELEASES_DISPLAYED = 6
 MAX_WORDS_PER_LINE = 6
 
 cli = Console()
@@ -130,31 +131,35 @@ def splitWordLines(text, words_per_line=MAX_WORDS_PER_LINE) :
 	return splitted
 
 def displayModInfo(packet, max_releases=MAX_RELEASES_DISPLAYED) :
-	print("Name: " + packet["title"])
-	print("Owner: " + packet["owner"])
-	print("Downloads: " + str(packet["downloads_count"]))
-	print("ID: " + packet["name"])
-	print("\nDescription: ")
-	print("\n".join(splitWordLines(packet["summary"])))
-
-	print("\nReleases:")
+	cli.print(f"[bold green]Name:[/bold green] [bold white]{packet['title']}[/bold white]")
+	cli.print(f"[bold green]Owner:[/bold green] [bold white]{packet['owner']}[/bold white]")
+	cli.print(f"[bold green]Downloads:[/bold green] [bold white]{str(packet['downloads_count'])}[/bold white]")
+	cli.print(f"[bold green]ID:[/bold green] [bold white]{packet['name']}[/bold white]")
+	cli.print(f"\nDescription: ")
+	cli.print(f"\n".join(splitWordLines(packet['summary'])))
+	print()
 
 	releases = packet["releases"]
 	releases.reverse()
 	if max_releases == -1 :
 		max_releases = len(releases)
 
+	releases_table = Table(title="[bold green]Releases[/bold green]")
+
+	releases_table.add_column("[green]File name[green]")
+	releases_table.add_column("[green]Mod Version[green]")
+	releases_table.add_column("[green]Game Version[green]")
+
 	tab = " "*4
 	i = 0
 	for x in releases :
 		if i == max_releases :
-			print(tab + "[" + str(len(releases) - i) + " more...]")
+			releases_table.add_row("", "", "")
+			releases_table.add_row(f"[bold red]{str(len(releases) - i)} more...[/bold red]", "", "")
+			cli.print(releases_table)
 			break
 
-		print(tab + "Version: " + x["version"])
-		print(tab + "Game Version: " + x["info_json"]["factorio_version"])
-		print(tab + "File name: " + x["file_name"])
-		print()
+		releases_table.add_row(x["file_name"], x["version"], x["info_json"]["factorio_version"])
 		i+=1
 
 def checkDirs() :
@@ -187,7 +192,7 @@ def hash_file(filename):
 
 def downloadMod(packet, vers=None) :
 	global username, token
-	
+
 	if not vers:
 		versions = [rl["version"] for rl in packet["releases"]]
 		versions.sort()
@@ -252,13 +257,13 @@ def parse_dep_code(code):
 
 def download_recursive_mod(mod_name, vers="latest", install_mod=False, visited_set=None):
 	visited_set = visited_set if visited_set else set()
-	
+
 	if mod_name in visited_set:
 		return
 	visited_set.add(mod_name)
 
 	mod_info = getModInfo(mod_name, detailed=True)
-	
+
 	if not vers:
 		# Inform the user about available releases
 		# when going interactive mode
@@ -267,7 +272,7 @@ def download_recursive_mod(mod_name, vers="latest", install_mod=False, visited_s
 
 		while True :
 			check = False
-			cli.print("[bold green]\nSelect release to download: [/bold green]", end="")
+			cli.print("[bold green]Select release to download: [/bold green]", end="")
 			vers = input().strip()
 			print()
 			for rl in mod_info["releases"] :
@@ -324,7 +329,7 @@ def askModName(message="[bold green]Insert mod name: [/bold green]", error_messa
 			continue
 		break
 	return packet
-	
+
 def help():
 	print("\n")
 	cli.print("[bold yellow]1)[/bold yellow] Install mod from mod portal")
@@ -337,8 +342,8 @@ def help():
 	cli.print("\n[bold yellow]Enter nothing to print this help again[/bold yellow]")
 
 def start() :
-	global username, token, factorio_path	
-	
+	global username, token, factorio_path
+
 	opt = 0
 	while True :
 		try :
@@ -430,7 +435,7 @@ try :
 		print(title)
 		checkDirs()
 		loadUserdata()
-		
+
 		help()
 		while True :
 			start()
