@@ -1,4 +1,5 @@
 import requests, json, os, sys, shutil, traceback, hashlib, platform
+from packaging import version
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
@@ -190,18 +191,10 @@ def hash_file(filename):
 	# return the hex representation of digest
 	return h.hexdigest()
 
-def downloadMod(packet, vers=None) :
+def downloadMod(packet, ver, filter=None) :
 	global username, token
 
-	if not vers:
-		versions = [rl["version"] for rl in packet["releases"]]
-		versions.sort()
-		vers = versions[-1]
-
-	release = None
-	for rl in  packet["releases"] :
-		if rl["version"] == vers :
-				release = dict(rl)
+	release = [r for r in packet["releases"] if r["version"] == ver][0]
 
 	url = "http://mods.factorio.com" + release["download_url"] + "?username=" + username + "&token=" + token
 	output_path = "mod_cache" + os.sep + release["file_name"]
@@ -211,7 +204,7 @@ def downloadMod(packet, vers=None) :
 
 		if sha1 == hash_file(output_path):
 			cli.print("[bold yellow]Using cached version[/bold yellow]")
-			return release["file_name"]
+			return release
 
 	request = requests.get(url)
 	request.raise_for_status()
@@ -221,50 +214,70 @@ def downloadMod(packet, vers=None) :
 			file.write(chunk)
 
 	cli.print("[bold green]Success[/bold green]")
-	return release["file_name"]
+	return release
 
 def parse_dep_code(code):
-	res = {"optional": False}
+	res = {"required": True, "conflict": False}
 
-	if code.replace("(", "").startswith('?'):
-		res["optional"] = True
-		code = code.replace("(?)", "") \
-			.replace("(?)!", "") \
-			.replace("?", "").strip()
+	code = code.strip()
 
-	splitted = code.split(" ")
-
-	if '?' in splitted[0]:
-		res["optional"] = True
-		del splitted[0]
-
-	if '!' in splitted[0]:
-		del splitted[0]
-
-	res["name"] = str()
-	for i in range(len(splitted)):
-		elem = splitted[i]
-
-		if elem in (">", ">=", "<", "<="):
-			res["sign"] = elem
-			res["version"] = splitted[i + 1]
+	for i in range(len(code)):
+		if code[i].isalnum():
+			if i > 0 and code[i-1] != " ":
+				code = code[:i] + " " + code[i:]
 			break
-		res["name"] += elem + " "
 
-	res["name"] = res["name"][:-1]
+	if not code[0].isalnum():
+		code = code.split(" ", 1)
+		part = code[0].strip("(").strip(")")
 
+		res["conflict"] = part== "!"
+		if part in ("?", "!"):
+			res["required"] = False
+		code = code[1]
+
+	for i in range(len(code)):
+		if not (code[i].isalnum() or code[i] in "-_ "):
+			res["name"] = code[:i].strip()
+			code = code[i:]
+			break
+	
+	sign = str()
+	for c in code:
+		if c in "<>=":
+			sign += c
+			code = code[1:]
+		else:
+			break
+	code = code.strip()
+
+	if len(code) > 0:
+		ver = version.parse(code)
+
+		res["filter"] = (lambda v: v > ver) if sign == ">" \
+					else (lambda v: v >= ver) if sign == ">=" \
+					else (lambda v: v < ver )if sign == "<" \
+					else (lambda v: v <= ver) if sign == "<=" \
+					else None
+	
 	return res
 
-def download_recursive_mod(mod_name, vers="latest", install_mod=False, visited_set=None):
-	visited_set = visited_set if visited_set else set()
+def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visited_set=None):
+	visited_set = visited_set if visited_set else dict()
 
-	if mod_name in visited_set:
-		return
-	visited_set.add(mod_name)
+	if mod_name in visited_set.keys():
+		return visited_set
+	visited_set[mod_name] = None
 
 	mod_info = getModInfo(mod_name, detailed=True)
 
-	if not vers:
+	if "message" in mod_info.keys():
+		cli.print(f"Could not download [bold red]{mod_name}[/bold red]: error: [bold red]{mod_info['message']}[/bold red]")
+		return
+
+	releases = [release for release in mod_info["releases"] if (not filter) or filter(version.parse(release["version"]))]
+
+	if not ver:
 		# Inform the user about available releases
 		# when going interactive mode
 		displayModInfo(mod_info)
@@ -273,50 +286,50 @@ def download_recursive_mod(mod_name, vers="latest", install_mod=False, visited_s
 		while True :
 			check = False
 			cli.print("[bold green]Select release to download: [/bold green]", end="")
-			vers = input().strip()
+			ver = input().strip()
 			print()
-			for rl in mod_info["releases"] :
-				if rl["version"] == vers :
+			for rl in releases :
+				if rl["version"] == ver :
 					check = True
 			if check :
 				break
 			cli.print("[bold red]!!! Version not released !!![/bold red]")
-	elif vers == "latest":
-		vers = None
-
-	if "message" in mod_info.keys():
-		cli.print(f"Could not download [bold red]{mod_name}[/bold red]: error: [bold red]{mod_info['message']}[/bold red]")
-		return
-
-	versions_ids = list(range(len(mod_info["releases"])))
-	versions_ids.sort(
-		key=lambda x: mod_info["releases"][x]["version"], reverse=True)
-
-	rel = mod_info["releases"][versions_ids[0]]
-	mod_rel_info = rel["info_json"]
+	elif ver == "latest":
+		releases.sort(key=(lambda release: version.parse(release["version"])))
+		ver = releases[-1]["version"]
 
 	print(f"Downloading {mod_name}... ", end="", flush=True)
-	file_name = downloadMod(mod_info, vers=vers)
+	target = downloadMod(mod_info, ver=ver)
+	visited_set[mod_name] = target["file_name"]
 
-	if "dependencies" in mod_rel_info:
-		for dep_code in mod_rel_info["dependencies"]:
+	if "dependencies" in target["info_json"]:
+		for dep_code in target["info_json"]["dependencies"]:
 			dep = parse_dep_code(dep_code)
-			if not dep["optional"] and dep["name"] != "base":
-					download_recursive_mod(dep["name"],
-						visited_set=visited_set,
-						install_mod=install_mod)
 
-	# Install the mod only after installing dependencies
-	# This way we always ensure that no mod is installed without its deps
-	if install_mod:
-		installMod(file_name)
+			if dep["required"] and dep["name"] != "base":
+					visited_set.update(
+						download_recursive_mod(dep["name"],
+							filter=dep.get("filter", None),
+							visited_set=visited_set))
 
-def installMod(filename) :
+	return visited_set
+
+def installMod(filename):
 	global factorio_path
 
-	cli.print("[bold green]Installing mod...[/bold green]")
-	shutil.copy("mod_cache" + os.sep + filename, factorio_path + os.sep + "mods")
-	cli.print("[bold green]Mod installed[/bold green]")
+	target = factorio_path + os.sep + "mods"
+	os.makedirs(target, exist_ok=True)
+
+	cli.print(f"[green]Installing {filename}... [/green]", end='')
+	sys.stdout.flush()
+
+	shutil.copy("mod_cache" + os.sep + filename, target)
+
+	cli.print("[bold green]Done[/bold green]")
+
+def install_set(visited_set):
+	for path in [val for val in visited_set.values() if val is not None]:
+		installMod(path)
 
 def askModName(message="[bold green]Insert mod name: [/bold green]", error_message="[bold red]!!! Not found, try again !!! [/bold red]") :
 	packet = {}
@@ -375,8 +388,10 @@ def start() :
 		except KeyboardInterrupt :
 			return
 
-		# downloadMod(packet)
-		download_recursive_mod(packet['name'], install_mod=opt == 1, vers=None)
+		visited = download_recursive_mod(packet['name'], ver=None)
+		if opt == 1:
+			print()
+			install_set(visited)
 
 	elif opt == 3:
 		try :
@@ -446,7 +461,7 @@ except Exception as exc:
 	print("Dumping traceback below\n")
 
 	traceback.print_tb(exc.__traceback__)
-	print('  ' + str(exc))
+	print('  ' + repr(exc))
 
 	input("\nPress enter to terminate\n")
 	sys.exit(1)
