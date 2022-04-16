@@ -241,6 +241,10 @@ def parse_dep_code(code):
 			res["name"] = code[:i].strip()
 			code = code[i:]
 			break
+
+	if "name" not in res.keys():
+		res["name"] = code
+		code = ""
 	
 	sign = str()
 	for c in code:
