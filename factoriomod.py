@@ -418,7 +418,7 @@ def start() :
 		except KeyboardInterrupt :
 			return
 
-		displayModInfo(packet)
+		displayModInfo(packet, max_releases=rels)
 
 	elif opt == 4:
 		if checkFactorioPathSet() :
