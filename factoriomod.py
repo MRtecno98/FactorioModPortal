@@ -22,14 +22,14 @@ token = ""
 
 factorio_path = ""
 
-def getModInfo(name,detailed=False) :
+def get_mod_info(name,detailed=False) :
 	query = "https://mods.factorio.com/api/mods/" + name.replace(" ", "%20") + ("/full" if detailed else "")
 	request = requests.get(query)
 
 	result = json.loads(request.text)
 	return result
 
-def isErrorPacket(modpacket) :
+def is_error_packet(modpacket) :
 	return "message" in modpacket.keys()
 
 def login():
@@ -46,11 +46,11 @@ def login():
 	username = usr
 	token = tk
 
-	saveUserdata()
+	save_userdata()
 
 	cli.print("[bold green]\nCredentials Saved![/bold green]")
 
-def setFactorioPath() :
+def set_factorio_path() :
 	global factorio_path
 
 	path = ""
@@ -66,13 +66,13 @@ def setFactorioPath() :
 		break
 
 	factorio_path = path
-	saveUserdata()
+	save_userdata()
 	cli.print("[bold green]Path changed![/bold green]")
 
-def checkFactorioPath(path):
+def check_factorio_path(path):
 	return os.path.isdir(path) and  ("mods" and "player-data.json" in os.listdir(path))
 
-def saveUserdata() :
+def save_userdata() :
 	global username, token, factorio_path
 
 	data = {}
@@ -83,7 +83,7 @@ def saveUserdata() :
 	with open("userdata.json", "w") as file :
 		file.write(json.dumps(data))
 
-def loadUserdata() :
+def load_userdata() :
 	global username, token, factorio_path
 
 	data = {}
@@ -94,7 +94,7 @@ def loadUserdata() :
 		token = data.get("token", "")
 		factorio_path = data.get("path", "")
 
-	if not checkFactorioPathSet():
+	if not check_factorio_path_set():
 		auto_path = "."
 		if platform.system() == 'Darwin':
 			auto_path = os.path.join(Path.home(),"Library/Application Support/factorio")
@@ -102,18 +102,18 @@ def loadUserdata() :
 			auto_path = os.path.join(Path.home(),"factorio")
 		elif platform.system() == 'Windows':
 			auto_path = os.path.join(Path.home(),"AppData/Roaming/Factorio")
-		if checkFactorioPath(auto_path):
+		if check_factorio_path(auto_path):
 			factorio_path = auto_path
 
-def checkCredentialsSet() :
+def check_credentials_set() :
 	global username, token
 	return username != "" and token != ""
 
-def checkFactorioPathSet() :
+def check_factorio_path_set() :
 	global factorio_path
 	return factorio_path != ""
 
-def splitWordLines(text, words_per_line=MAX_WORDS_PER_LINE) :
+def split_word_lines(text, words_per_line=MAX_WORDS_PER_LINE) :
 	words = text.split(" ")
 	splitted = list()
 
@@ -131,13 +131,13 @@ def splitWordLines(text, words_per_line=MAX_WORDS_PER_LINE) :
 
 	return splitted
 
-def displayModInfo(packet, max_releases=MAX_RELEASES_DISPLAYED) :
+def display_mod_info(packet, max_releases=MAX_RELEASES_DISPLAYED) :
 	cli.print(f"[bold green]Name:[/bold green] [bold white]{packet['title']}[/bold white]")
 	cli.print(f"[bold green]Owner:[/bold green] [bold white]{packet['owner']}[/bold white]")
 	cli.print(f"[bold green]Downloads:[/bold green] [bold white]{str(packet['downloads_count'])}[/bold white]")
 	cli.print(f"[bold green]ID:[/bold green] [bold white]{packet['name']}[/bold white]")
 	cli.print(f"\nDescription: ")
-	cli.print(f"\n".join(splitWordLines(packet['summary'])))
+	cli.print(f"\n".join(split_word_lines(packet['summary'])))
 	print()
 
 	releases = packet["releases"]
@@ -163,13 +163,13 @@ def displayModInfo(packet, max_releases=MAX_RELEASES_DISPLAYED) :
 		releases_table.add_row(x["file_name"], x["version"], x["info_json"]["factorio_version"])
 		i+=1
 
-def checkDirs() :
+def check_dirs() :
 	os.makedirs("mod_cache", exist_ok=True)
 
-def clearCache() :
+def clear_cache() :
 	if os.path.isdir("mod_cache") :
 		shutil.rmtree("mod_cache")
-		checkDirs()
+		check_dirs()
 
 def hash_file(filename):
 	""""This function returns the SHA-1 hash
@@ -191,7 +191,7 @@ def hash_file(filename):
 	# return the hex representation of digest
 	return h.hexdigest()
 
-def downloadMod(packet, ver, filter=None) :
+def download_mod(packet, ver, filter=None) :
 	global username, token
 
 	release = [r for r in packet["releases"] if r["version"] == ver][0]
@@ -273,7 +273,7 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 		return visited_set
 	visited_set[mod_name] = None
 
-	mod_info = getModInfo(mod_name, detailed=True)
+	mod_info = get_mod_info(mod_name, detailed=True)
 
 	if "message" in mod_info.keys():
 		cli.print(f"Could not download [bold red]{mod_name}[/bold red]: error: [bold red]{mod_info['message']}[/bold red]")
@@ -284,7 +284,7 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 	if not ver:
 		# Inform the user about available releases
 		# when going interactive mode
-		displayModInfo(mod_info)
+		display_mod_info(mod_info)
 		print()
 
 		while True :
@@ -303,7 +303,7 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 		ver = releases[-1]["version"]
 
 	print(f"Downloading {mod_name}... ", end="", flush=True)
-	target = downloadMod(mod_info, ver=ver)
+	target = download_mod(mod_info, ver=ver)
 	visited_set[mod_name] = target["file_name"]
 
 	if "dependencies" in target["info_json"]:
@@ -318,7 +318,7 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 
 	return visited_set
 
-def installMod(filename):
+def install_mod(filename):
 	global factorio_path
 
 	source = "mod_cache" + os.sep + filename
@@ -338,15 +338,15 @@ def installMod(filename):
 
 def install_set(visited_set):
 	for path in [val for val in visited_set.values() if val is not None]:
-		installMod(path)
+		install_mod(path)
 
-def askModName(message="[bold green]Insert mod name: [/bold green]", error_message="[bold red]!!! Not found, try again !!! [/bold red]") :
+def ask_mod_name(message="[bold green]Insert mod name: [/bold green]", error_message="[bold red]!!! Not found, try again !!! [/bold red]") :
 	packet = {}
 	while True :
 		cli.print(message, end="")
 		name = input()
-		packet = getModInfo(name)
-		if isErrorPacket(packet) :
+		packet = get_mod_info(name)
+		if is_error_packet(packet) :
 			cli.print(error_message)
 			continue
 		break
@@ -382,17 +382,17 @@ def start() :
 		sys.exit(0)
 
 	if opt in (1, 2):
-		if not checkCredentialsSet() :
+		if not check_credentials_set() :
 			cli.print("[bold red]!!! You need to set the credentials in order to download a mod !!![/bold red]")
 			return
 
 		if opt == 1 :
-			if not checkFactorioPathSet() :
+			if not check_factorio_path_set() :
 				cli.print("[bold red]!!! You need to set the factorio path in order to install a mod !!![/bold red]")
 				return
 
 		try :
-			packet = askModName()
+			packet = ask_mod_name()
 			print()
 		except KeyboardInterrupt :
 			return
@@ -404,7 +404,7 @@ def start() :
 
 	elif opt == 3:
 		try :
-			packet = askModName()
+			packet = ask_mod_name()
 
 			while True:
 				try :
@@ -418,10 +418,10 @@ def start() :
 		except KeyboardInterrupt :
 			return
 
-		displayModInfo(packet, max_releases=rels)
+		display_mod_info(packet, max_releases=rels)
 
 	elif opt == 4:
-		if checkFactorioPathSet() :
+		if check_factorio_path_set() :
 			cli.print("[bold red]\nIMPORTANT:[/bold red] You'll overwrite the previous path")
 			while True:
 				cli.print("Continue? [bold green]Y[/bold green]/[bold red]n[/bold red]: ", end="")
@@ -434,10 +434,10 @@ def start() :
 		cli.print("Setting a factorio path will able you to [bold red]automatic[/bold red] install mods after download, " + \
 			  "insert here the [bold red]ABSOLUTE[/bold red] path for the Factorio Game Folder\n")
 
-		setFactorioPath()
+		set_factorio_path()
 
 	elif opt == 5:
-		if checkCredentialsSet() :
+		if check_credentials_set() :
 			cli.print("[bold red]\nIMPORTANT:[/bold red] You'll overwrite the previous credentials")
 			while True:
 				cli.print("Continue? [bold green]Y[/bold green]/[bold red]n[/bold red]: ", end="")
@@ -451,14 +451,14 @@ def start() :
 
 	elif opt == 6:
 		print("Clearing mod cache...")
-		clearCache()
+		clear_cache()
 		print("Done")
 
 try :
 	if __name__ == "__main__" :
 		print(title)
-		checkDirs()
-		loadUserdata()
+		check_dirs()
+		load_userdata()
 
 		help()
 		while True :
