@@ -321,13 +321,18 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 def installMod(filename):
 	global factorio_path
 
-	target = factorio_path + os.sep + "mods"
-	os.makedirs(target, exist_ok=True)
+	source = "mod_cache" + os.sep + filename
+	target = factorio_path + os.sep + "mods" + os.sep + filename
+	os.makedirs(os.path.dirname(target), exist_ok=True)
 
 	cli.print(f"[green]Installing {filename}... [/green]", end='')
 	sys.stdout.flush()
 
-	shutil.copy("mod_cache" + os.sep + filename, target)
+	if os.path.isfile(target) and hash_file(source) == hash_file(target):
+		cli.print("[bright_black]Already installed[/bright_black]")
+		return
+
+	shutil.copy(source, target)
 
 	cli.print("[bold green]Done[/bold green]")
 
