@@ -35,7 +35,7 @@ def is_error_packet(modpacket) :
 def login():
 	global username, token
 
-	cli.print("Insert below your Factorio account data [bold red](NOT NECESSARALY PREMIUM)[/bold red]")
+	cli.print("Insert below your Factorio account data")
 
 	cli.print("[bold green]Insert username: [/bold green]", end="")
 	usr = input()
@@ -55,7 +55,7 @@ def set_factorio_path() :
 
 	path = ""
 	while True :
-		cli.print("[bold green]Inser Factorio path: [/bold green]", end="")
+		cli.print("[bold green]Insert Factorio path: [/bold green]", end="")
 		path = input().strip()
 		if not os.path.isdir(path) :
 			continue
