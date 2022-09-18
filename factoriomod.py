@@ -7,6 +7,11 @@ from rich.table import Table
 MAX_RELEASES_DISPLAYED = 6
 MAX_WORDS_PER_LINE = 7
 
+FALLBACK_MIRRORS = [
+	("https://factorio-launcher-mods.storage.googleapis.com", 0),
+	("https://official-factorio-mirror.1488.me", 0), # Kindly mirrored by @radioegor146
+]
+
 cli = Console()
 
 title = """
@@ -19,6 +24,7 @@ title = """
 
 username = ""
 token = ""
+paid = False
 
 factorio_path = ""
 
@@ -33,7 +39,7 @@ def is_error_packet(modpacket) :
 	return "message" in modpacket.keys()
 
 def login():
-	global username, token
+	global username, token, paid
 
 	cli.print("Insert below your Factorio account data")
 
@@ -43,8 +49,13 @@ def login():
 	cli.print("[bold green]Insert token: [/bold green]", end="")
 	tk = input().strip()
 
+	cli.print("\nPaid accounts can use better mirrors for downloading mods")
+	cli.print("[bold green]Is this a [bold yellow]paid[/bold yellow] account? y[/bold green]/[bold green][bold red]N[/bold red]: [/bold green]", end="")
+	pd = input().lower() == "y"
+
 	username = usr
 	token = tk
+	paid = pd
 
 	save_userdata()
 
@@ -79,12 +90,13 @@ def save_userdata() :
 	data["username"] = username
 	data["token"] = token
 	data["path"] = factorio_path
+	data["paid"] = paid
 
 	with open("userdata.json", "w") as file :
 		file.write(json.dumps(data))
 
 def load_userdata() :
-	global username, token, factorio_path
+	global username, token, factorio_path, paid
 
 	data = {}
 	if os.path.isfile("userdata.json") :
@@ -93,6 +105,7 @@ def load_userdata() :
 		username = data.get("username", "")
 		token = data.get("token", "")
 		factorio_path = data.get("path", "")
+		paid = data.get("paid", paid)
 
 	if not check_factorio_path_set():
 		auto_path = "."
@@ -191,12 +204,18 @@ def hash_file(filename):
 	# return the hex representation of digest
 	return h.hexdigest()
 
+def build_download_urls(packet, release, paid=False, username=None, token=None):
+	if paid:
+		return ["http://mods.factorio.com" + release["download_url"] + "?username=" + username + "&token=" + token]
+	else:
+		return [("/".join((FALLBACK_MIRRORS[i][0], packet["name"], release["version"] + ".zip")), i) for i in range(len(FALLBACK_MIRRORS))]
+
 def download_mod(packet, ver, filter=None) :
-	global username, token
+	global username, token, paid
 
 	release = [r for r in packet["releases"] if r["version"] == ver][0]
 
-	url = "http://mods.factorio.com" + release["download_url"] + "?username=" + username + "&token=" + token
+	urls = build_download_urls(packet, release, paid, username, token)
 	output_path = "mod_cache" + os.sep + release["file_name"]
 
 	if os.path.isfile(output_path):
@@ -206,12 +225,28 @@ def download_mod(packet, ver, filter=None) :
 			cli.print("[bold yellow]Using cached version[/bold yellow]")
 			return release
 
-	request = requests.get(url)
-	request.raise_for_status()
+	for i in range(len(urls)):
+		url, mirror = urls[i]
 
-	with open(output_path, "wb") as file:
-		for chunk in request.iter_content(4096) :
-			file.write(chunk)
+		try:
+			request = requests.get(url)
+			request.raise_for_status()
+
+			with open(output_path, "wb") as file:
+				for chunk in request.iter_content(4096) :
+					file.write(chunk)
+
+			break
+		except:
+			FALLBACK_MIRRORS[mirror][1] += 1
+
+			if i < len(urls):
+				raise
+			else:
+				continue
+	
+	if i != 0:
+		FALLBACK_MIRRORS.sort(key=lambda mirror: mirror[1])
 
 	cli.print("[bold green]Success[/bold green]")
 	return release
