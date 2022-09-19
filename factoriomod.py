@@ -337,13 +337,17 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 
 		while True:
 			check = False
-			cli.print("[bold green]Select release to download: [/bold green]", end="")
+			cli.print("[bold green]Select release to download(default: latest): [/bold green]", end="")
 			ver = input().strip()
 			print()
-			for rl in releases :
-				if rl["version"] == ver :
+			
+			if ver == "":
+				ver = releases[-1]["version"]
+
+			for rl in releases:
+				if rl["version"] == ver:
 					check = True
-			if check :
+			if check:
 				break
 			cli.print("[bold red]!!! Version not released !!![/bold red]")
 	elif ver == "latest":
