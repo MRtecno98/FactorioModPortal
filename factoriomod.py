@@ -1,4 +1,4 @@
-import requests, json, os, sys, shutil, traceback, hashlib, platform
+import requests, json, os, sys, shutil, traceback, hashlib, platform, difflib
 from packaging import version
 from pathlib import Path
 from rich.console import Console
@@ -30,15 +30,25 @@ paid = False
 
 factorio_path = ""
 
-def get_mod_info(name,detailed=False) :
+data_cache = None
+
+def get_mod_info(name,detailed=False):
+	if not detailed and data_cache is not None:
+		match = [res for res in data_cache["results"] if res["name"] == name]
+		if len(match) > 0:
+			return match[0]
+
 	query = "https://mods.factorio.com/api/mods/" + name.replace(" ", "%20") + ("/full" if detailed else "")
 	request = requests.get(query)
 
 	result = json.loads(request.text)
 	return result
 
-def is_error_packet(modpacket) :
-	return "message" in modpacket.keys()
+def is_error_packet(modpacket):
+	return modpacket is not None and "message" in modpacket.keys()
+
+def similar(a, b):
+    return difflib.SequenceMatcher(None, a, b).ratio()
 
 def login():
 	global username, token, paid
@@ -63,17 +73,17 @@ def login():
 
 	cli.print("[bold green]\nCredentials Saved![/bold green]")
 
-def set_factorio_path() :
+def set_factorio_path():
 	global factorio_path
 
 	path = ""
-	while True :
+	while True:
 		cli.print("[bold green]Insert Factorio path: [/bold green]", end="")
 		path = input().strip()
-		if not os.path.isdir(path) :
+		if not os.path.isdir(path):
 			continue
 
-		if not ("mods" and "bin" and "player-data.json" in os.listdir(path)) :
+		if not ("mods" and "bin" and "player-data.json" in os.listdir(path)):
 			cli.print("[bold red]!!! Invalid Factorio path !!![/bold red]")
 			continue
 		break
@@ -85,7 +95,7 @@ def set_factorio_path() :
 def check_factorio_path(path):
 	return os.path.isdir(path) and  ("mods" and "player-data.json" in os.listdir(path))
 
-def save_userdata() :
+def save_userdata():
 	global username, token, factorio_path
 
 	data = {}
@@ -94,15 +104,15 @@ def save_userdata() :
 	data["path"] = factorio_path
 	data["paid"] = paid
 
-	with open("userdata.json", "w") as file :
+	with open("userdata.json", "w") as file:
 		file.write(json.dumps(data))
 
-def load_userdata() :
+def load_userdata():
 	global username, token, factorio_path, paid
 
 	data = {}
-	if os.path.isfile("userdata.json") :
-		with open("userdata.json") as file :
+	if os.path.isfile("userdata.json"):
+		with open("userdata.json") as file:
 			data = json.loads(file.read())
 		username = data.get("username", "")
 		token = data.get("token", "")
@@ -120,22 +130,22 @@ def load_userdata() :
 		if check_factorio_path(auto_path):
 			factorio_path = auto_path
 
-def check_credentials_set() :
+def check_credentials_set():
 	global username, token
 	return username != "" and token != ""
 
-def check_factorio_path_set() :
+def check_factorio_path_set():
 	global factorio_path
 	return factorio_path != ""
 
-def split_word_lines(text, words_per_line=MAX_WORDS_PER_LINE) :
+def split_word_lines(text, words_per_line=MAX_WORDS_PER_LINE):
 	words = text.split(" ")
 	splitted = list()
 
 	c = 0
 	temp = list()
-	for word in words :
-		if c == words_per_line :
+	for word in words:
+		if c == words_per_line:
 			splitted.append(" ".join(temp))
 			temp = list()
 			c = 0
@@ -146,7 +156,7 @@ def split_word_lines(text, words_per_line=MAX_WORDS_PER_LINE) :
 
 	return splitted
 
-def display_mod_info(packet, max_releases=MAX_RELEASES_DISPLAYED) :
+def display_mod_info(packet, max_releases=MAX_RELEASES_DISPLAYED):
 	cli.print(f"[bold green]Name:[/bold green] [bold white]{packet['title']}[/bold white]")
 	cli.print(f"[bold green]Owner:[/bold green] [bold white]{packet['owner']}[/bold white]")
 	cli.print(f"[bold green]Downloads:[/bold green] [bold white]{str(packet['downloads_count'])}[/bold white]")
@@ -157,7 +167,7 @@ def display_mod_info(packet, max_releases=MAX_RELEASES_DISPLAYED) :
 
 	releases = packet["releases"]
 	releases.reverse()
-	if max_releases == -1 :
+	if max_releases == -1:
 		max_releases = len(releases)
 
 	releases_table = Table(title="[bold green]Releases[/bold green]")
@@ -168,8 +178,8 @@ def display_mod_info(packet, max_releases=MAX_RELEASES_DISPLAYED) :
 
 	tab = " "*4
 	i = 0
-	for x in releases :
-		if i == max_releases :
+	for x in releases:
+		if i == max_releases:
 			releases_table.add_row("", "", "")
 			releases_table.add_row(f"[bold red]{str(len(releases) - i)} more...[/bold red]", "", "")
 			cli.print(releases_table)
@@ -178,11 +188,11 @@ def display_mod_info(packet, max_releases=MAX_RELEASES_DISPLAYED) :
 		releases_table.add_row(x["file_name"], x["version"], x["info_json"]["factorio_version"])
 		i+=1
 
-def check_dirs() :
+def check_dirs():
 	os.makedirs("mod_cache", exist_ok=True)
 
-def clear_cache() :
-	if os.path.isdir("mod_cache") :
+def clear_cache():
+	if os.path.isdir("mod_cache"):
 		shutil.rmtree("mod_cache")
 		check_dirs()
 
@@ -212,7 +222,7 @@ def build_download_urls(packet, release, paid=False, username=None, token=None):
 	else:
 		return [("/".join((FALLBACK_MIRRORS[i][0], packet["name"], release["version"] + ".zip")), i) for i in range(len(FALLBACK_MIRRORS))]
 
-def download_mod(packet, ver, filter=None) :
+def download_mod(packet, ver, filter=None):
 	global username, token, paid
 
 	release = [r for r in packet["releases"] if r["version"] == ver][0]
@@ -236,7 +246,7 @@ def download_mod(packet, ver, filter=None) :
 			request.raise_for_status()
 
 			with open(output_path, "wb") as file:
-				for chunk in request.iter_content(4096) :
+				for chunk in request.iter_content(4096):
 					file.write(chunk)
 
 			break
@@ -325,7 +335,7 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 		display_mod_info(mod_info)
 		print()
 
-		while True :
+		while True:
 			check = False
 			cli.print("[bold green]Select release to download: [/bold green]", end="")
 			ver = input().strip()
@@ -378,14 +388,46 @@ def install_set(visited_set):
 	for path in [val for val in visited_set.values() if val is not None]:
 		install_mod(path)
 
-def ask_mod_name(message="[bold green]Insert mod name: [/bold green]", error_message="[bold red]!!! Not found, try again !!! [/bold red]") :
+def search(query, max_similar=5):
+	global data_cache
+	if data_cache is None:
+		data_cache = requests.get("https://mods.factorio.com/api/mods?page_size=max").json()
+	
+	matches = [
+		(data_cache["results"][i], similar(query, data_cache["results"][i]["name"].lower())) 
+			for i in range(len(data_cache["results"]))]
+	matches.sort(key=lambda p: p[1], reverse=True)
+	
+	return matches[:max_similar]
+
+def ask_mod_name():
+	matches = None
 	packet = {}
-	while True :
-		cli.print(message, end="")
+	while True:
+		cli.print("[bold green]Insert mod name: [/bold green]", end="")
 		name = input()
+		if matches is not None:
+			if name == "":
+				name = '0'
+			try:
+				return matches[int(name)][0]
+			except:
+				pass
+
 		packet = get_mod_info(name)
-		if is_error_packet(packet) :
-			cli.print(error_message)
+		if is_error_packet(packet):
+			matches = search(name)
+			longest = max(len(match[0]["name"]) for match in matches)
+
+			cli.print("\nDidn't found exact match, maybe you meant one of these?")
+			for i in range(len(matches)):
+				match, confid = matches[i]
+				cli.print(f"[bold yellow][{i}] [/bold yellow]{match['name']}"
+						  f"[bold yellow] {chr(9) * ((longest - len(match['name'])) // 4 + 1)}"
+						  f"({int(confid * 100)}% exact)[/bold yellow]")
+			print()
+
+			cli.print("[bold red]!!! Not found, try again !!! [/bold red]")
 			continue
 		break
 	return packet
@@ -401,38 +443,38 @@ def help():
 	cli.print("[bold yellow]0)[/bold yellow] Exit")
 	cli.print("\n[bold yellow]Enter nothing to print this help again[/bold yellow]")
 
-def start() :
+def start():
 	global username, token, factorio_path
 
 	opt = 0
-	while True :
-		try :
+	while True:
+		try:
 			cli.print("\n[bold green]-> [/bold green]", end="")
 			opt = int(input())
 			break
-		except KeyboardInterrupt :
+		except KeyboardInterrupt:
 			sys.exit(0)
-		except :
+		except:
 			help()
 			continue
 
-	if opt == 0 :
+	if opt == 0:
 		sys.exit(0)
 
 	if opt in (1, 2):
-		if not check_credentials_set() :
+		if not check_credentials_set():
 			cli.print("[bold red]!!! You need to set the credentials in order to download a mod !!![/bold red]")
 			return
 
-		if opt == 1 :
-			if not check_factorio_path_set() :
+		if opt == 1:
+			if not check_factorio_path_set():
 				cli.print("[bold red]!!! You need to set the factorio path in order to install a mod !!![/bold red]")
 				return
 
-		try :
+		try:
 			packet = ask_mod_name()
 			print()
-		except KeyboardInterrupt :
+		except KeyboardInterrupt:
 			return
 
 		visited = download_recursive_mod(packet['name'], ver=None)
@@ -441,11 +483,11 @@ def start() :
 			install_set(visited)
 
 	elif opt == 3:
-		try :
+		try:
 			packet = ask_mod_name()
 
 			while True:
-				try :
+				try:
 					rels = input(f"Releases to print(-1 for all, default {MAX_RELEASES_DISPLAYED}): ")
 					rels = -1 if rels == "" else int(rels)
 					break
@@ -453,20 +495,20 @@ def start() :
 					continue
 
 			print()
-		except KeyboardInterrupt :
+		except KeyboardInterrupt:
 			return
 
 		display_mod_info(packet, max_releases=rels)
 
 	elif opt == 4:
-		if check_factorio_path_set() :
+		if check_factorio_path_set():
 			cli.print("[bold red]\nIMPORTANT:[/bold red] You'll overwrite the previous path")
 			while True:
 				cli.print("Continue? [bold green]Y[/bold green]/[bold red]n[/bold red]: ", end="")
 				c = input().lower()
-				if c == "" or c == "y" :
+				if c == "" or c == "y":
 					break
-				if c == "n" :
+				if c == "n":
 					return
 
 		cli.print("Setting a factorio path will able you to [bold red]automatic[/bold red] install mods after download, " + \
@@ -475,14 +517,14 @@ def start() :
 		set_factorio_path()
 
 	elif opt == 5:
-		if check_credentials_set() :
+		if check_credentials_set():
 			cli.print("[bold red]\nIMPORTANT:[/bold red] You'll overwrite the previous credentials")
 			while True:
 				cli.print("Continue? [bold green]Y[/bold green]/[bold red]n[/bold red]: ", end="")
 				c = input().lower()
-				if c == "" or c == "y" :
+				if c == "" or c == "y":
 					break
-				if c == "n" :
+				if c == "n":
 					return
 
 		login()
@@ -492,14 +534,14 @@ def start() :
 		clear_cache()
 		print("Done")
 
-try :
-	if __name__ == "__main__" :
+try:
+	if __name__ == "__main__":
 		print(title)
 		check_dirs()
 		load_userdata()
 
 		help()
-		while True :
+		while True:
 			start()
 except KeyboardInterrupt:
 	sys.exit(1)
