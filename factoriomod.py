@@ -31,6 +31,7 @@ paid = False
 factorio_path = ""
 
 data_cache = None
+checksums = None
 
 def get_mod_info(name,detailed=False):
 	if not detailed and data_cache is not None:
@@ -222,6 +223,32 @@ def build_download_urls(packet, release, paid=False, username=None, token=None):
 	else:
 		return [("/".join((FALLBACK_MIRRORS[i][0], packet["name"], release["version"] + ".zip")), i) for i in range(len(FALLBACK_MIRRORS))]
 
+CHECKSUM_FILE = "mod_cache" + os.sep + "checksums.json"
+def get_cache_checksums():
+	global checksums
+	
+	if checksums is None:
+		if os.path.isfile(CHECKSUM_FILE):
+			with open(CHECKSUM_FILE) as f:
+				checksums = json.loads(f.read())
+		else:
+			checksums = dict()
+		
+	return checksums
+
+def save_cache_checksums():
+	global checksums
+
+	if checksums is not None:
+		with open(CHECKSUM_FILE, "w") as f:
+			f.write(json.dumps(checksums, indent=4))
+
+def get_file_hash(file):
+	if file not in list(get_cache_checksums().keys()):
+		checksums[file] = hash_file(file)
+		save_cache_checksums()
+	return checksums[file]
+
 def download_mod(packet, ver, filter=None):
 	global username, token, paid
 
@@ -233,7 +260,7 @@ def download_mod(packet, ver, filter=None):
 	if os.path.isfile(output_path):
 		sha1 = release["sha1"]
 
-		if sha1 == hash_file(output_path):
+		if sha1 == get_file_hash(output_path):
 			cli.print("[bold yellow]Using cached version[/bold yellow]")
 			return release
 
@@ -248,6 +275,9 @@ def download_mod(packet, ver, filter=None):
 			with open(output_path, "wb") as file:
 				for chunk in request.iter_content(4096):
 					file.write(chunk)
+
+			checksums[output_path] = hash_file(output_path)
+			save_cache_checksums()
 
 			break
 		except:
