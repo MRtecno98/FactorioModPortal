@@ -7,6 +7,8 @@ from rich.table import Table
 MAX_RELEASES_DISPLAYED = 6
 MAX_WORDS_PER_LINE = 7
 
+USER_AGENT = "python-factoriomod"
+
 FALLBACK_MIRRORS = [
 	("https://factorio-launcher-mods.storage.googleapis.com", 0),
 	("https://official-factorio-mirror.1488.me", 0), # Kindly mirrored by @radioegor146
@@ -229,7 +231,8 @@ def download_mod(packet, ver, filter=None) :
 		url, mirror = urls[i]
 
 		try:
-			request = requests.get(url)
+			# Setting user agent to make us recongizable by mirror firewalls
+			request = requests.get(url, headers={"User-Agent": USER_AGENT})
 			request.raise_for_status()
 
 			with open(output_path, "wb") as file:
