@@ -483,10 +483,11 @@ def help():
 	print("\n")
 	cli.print("[bold yellow]1)[/bold yellow] Install mod from mod portal")
 	cli.print("[bold yellow]2)[/bold yellow] Download mod from mod portal")
-	cli.print("[bold yellow]3)[/bold yellow] View mod info")
-	cli.print("[bold yellow]4)[/bold yellow] Select Factorio installation")
-	cli.print("[bold yellow]5)[/bold yellow] Set user data")
-	cli.print("[bold yellow]6)[/bold yellow] Clear cache")
+	cli.print("[bold yellow]3)[/bold yellow] Import mod_list file")
+	cli.print("[bold yellow]4)[/bold yellow] View mod info")
+	cli.print("[bold yellow]5)[/bold yellow] Select Factorio installation")
+	cli.print("[bold yellow]6)[/bold yellow] Set user data")
+	cli.print("[bold yellow]7)[/bold yellow] Clear cache")
 	cli.print("[bold yellow]0)[/bold yellow] Exit")
 	cli.print("\n[bold yellow]Enter nothing to print this help again[/bold yellow]")
 
@@ -530,6 +531,29 @@ def start():
 			install_set(visited)
 
 	elif opt == 3:
+		cli.print("\n[bold green]Insert file path(default [/bold green]mod-list.json[bold green]): [/bold green]", end="")
+		path = input()
+		if path == "":
+			path = "mod-list.json"
+		if not os.path.isfile(path):
+			cli.print(f"[bold red]!!! Could not find file {path} !!![/bold red]")
+			return
+
+		print()
+		
+		with open(path) as f:
+			mod_list = json.loads(f.read())
+		
+		to_install = dict()
+		for mod in [mod["name"] for mod in mod_list["mods"] if mod["name"] != "base"]:
+			to_install.update(download_recursive_mod(mod, visited_set=to_install))
+
+		print()
+
+		install_set(to_install)
+		shutil.copy(path, os.path.join(factorio_path, "mods", "mod-list.json"))
+
+	elif opt == 4:
 		try:
 			packet = ask_mod_name()
 
@@ -547,7 +571,7 @@ def start():
 
 		display_mod_info(packet, max_releases=rels)
 
-	elif opt == 4:
+	elif opt == 5:
 		if check_factorio_path_set():
 			cli.print("[bold red]\nIMPORTANT:[/bold red] You'll overwrite the previous path")
 			while True:
@@ -563,7 +587,7 @@ def start():
 
 		set_factorio_path()
 
-	elif opt == 5:
+	elif opt == 6:
 		if check_credentials_set():
 			cli.print("[bold red]\nIMPORTANT:[/bold red] You'll overwrite the previous credentials")
 			while True:
@@ -576,7 +600,7 @@ def start():
 
 		login()
 
-	elif opt == 6:
+	elif opt == 7:
 		print("Clearing mod cache...")
 		clear_cache()
 		print("Done")
