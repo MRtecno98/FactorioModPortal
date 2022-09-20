@@ -1,4 +1,5 @@
-import requests, json, os, sys, shutil, traceback, hashlib, platform, difflib
+import requests, json, os, sys, shutil, traceback, hashlib, platform, difflib, time
+from concurrent.futures import ThreadPoolExecutor
 from packaging import version
 from pathlib import Path
 from rich.console import Console
@@ -33,10 +34,13 @@ factorio_path = ""
 data_cache = None
 checksums = None
 
+executor = None
+
 def get_mod_info(name,detailed=False):
-	if not detailed and data_cache is not None:
-		match = [res for res in data_cache["results"] if res["name"] == name]
+	if not detailed:
+		match = [res for res in get_data_cache()["results"] if res["name"] == name]
 		if len(match) > 0:
+			match[0]["releases"] = [match[0].pop("latest_release"),]
 			return match[0]
 
 	query = "https://mods.factorio.com/api/mods/" + name.replace(" ", "%20") + ("/full" if detailed else "")
@@ -50,6 +54,14 @@ def is_error_packet(modpacket):
 
 def similar(a, b):
     return difflib.SequenceMatcher(None, a, b).ratio()
+
+def get_data_cache():
+	return data_cache.result()
+
+def build_data_cache(force_rebuild=False):
+	global data_cache
+	if data_cache is None or force_rebuild:
+		data_cache = executor.submit(lambda: requests.get("https://mods.factorio.com/api/mods?page_size=max").json())
 
 def login():
 	global username, token, paid
@@ -344,14 +356,15 @@ def parse_dep_code(code):
 	
 	return res
 
-def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visited_set=None):
+def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visited_set=None, min_delay=.03):
 	visited_set = visited_set if visited_set else dict()
+	stamp = time.time()
 
 	if mod_name in visited_set.keys():
 		return visited_set
 	visited_set[mod_name] = None
 
-	mod_info = get_mod_info(mod_name, detailed=True)
+	mod_info = get_mod_info(mod_name, detailed=ver != "latest")
 
 	if "message" in mod_info.keys():
 		cli.print(f"Could not download [bold red]{mod_name}[/bold red]: error: [bold red]{mod_info['message']}[/bold red]")
@@ -388,6 +401,9 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 	target = download_mod(mod_info, ver=ver)
 	visited_set[mod_name] = target["file_name"]
 
+	if min_delay - (time.time() - stamp) > 0:
+		time.sleep(min_delay - (time.time() - stamp))
+
 	if "dependencies" in target["info_json"]:
 		for dep_code in target["info_json"]["dependencies"]:
 			dep = parse_dep_code(dep_code)
@@ -396,7 +412,8 @@ def download_recursive_mod(mod_name, ver="latest", filter=lambda v: True, visite
 					visited_set.update(
 						download_recursive_mod(dep["name"],
 							filter=dep.get("filter", None),
-							visited_set=visited_set))
+							visited_set=visited_set,
+							min_delay=min_delay))
 
 	return visited_set
 
@@ -423,13 +440,9 @@ def install_set(visited_set):
 		install_mod(path)
 
 def search(query, max_similar=5):
-	global data_cache
-	if data_cache is None:
-		data_cache = requests.get("https://mods.factorio.com/api/mods?page_size=max").json()
-	
 	matches = [
-		(data_cache["results"][i], similar(query, data_cache["results"][i]["name"].lower())) 
-			for i in range(len(data_cache["results"]))]
+		(get_data_cache()["results"][i], similar(query, get_data_cache()["results"][i]["name"].lower())) 
+			for i in range(len(get_data_cache()["results"]))]
 	matches.sort(key=lambda p: p[1], reverse=True)
 	
 	return matches[:max_similar]
@@ -570,13 +583,15 @@ def start():
 
 try:
 	if __name__ == "__main__":
-		print(title)
-		check_dirs()
-		load_userdata()
+		with ThreadPoolExecutor(max_workers=1) as executor:
+			print(title)
+			check_dirs()
+			load_userdata()
+			build_data_cache()
 
-		help()
-		while True:
-			start()
+			help()
+			while True:
+				start()
 except KeyboardInterrupt:
 	sys.exit(1)
 except Exception as exc:
