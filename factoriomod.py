@@ -11,8 +11,8 @@ MAX_WORDS_PER_LINE = 7
 USER_AGENT = "python-factoriomod"
 
 FALLBACK_MIRRORS = [
-	("https://factorio-launcher-mods.storage.googleapis.com", 0),
-	("https://official-factorio-mirror.1488.me", 0), # Kindly mirrored by @radioegor146
+	["https://factorio-launcher-mods.storage.googleapis.com", 0],
+	["https://official-factorio-mirror.1488.me", 0], # Kindly mirrored by @radioegor146
 ]
 
 cli = Console()
