@@ -234,7 +234,7 @@ def hash_file(filename):
 
 def build_download_urls(packet, release, paid=False, username=None, token=None):
 	if paid:
-		return ["http://mods.factorio.com" + release["download_url"] + "?username=" + username + "&token=" + token]
+		return [("http://mods.factorio.com" + release["download_url"] + "?username=" + username + "&token=" + token, -1)]
 	else:
 		return [("/".join((FALLBACK_MIRRORS[i][0], packet["name"], release["version"] + ".zip")), i) for i in range(len(FALLBACK_MIRRORS))]
 
@@ -291,12 +291,13 @@ def download_mod(packet, ver, filter=None):
 				for chunk in request.iter_content(4096):
 					file.write(chunk)
 
-			checksums[output_path] = hash_file(output_path)
+			get_cache_checksums()[output_path] = hash_file(output_path)
 			save_cache_checksums()
 
 			break
 		except:
-			FALLBACK_MIRRORS[mirror][1] += 1
+			if mirror != -1:
+				FALLBACK_MIRRORS[mirror][1] += 1
 
 			if i < len(urls):
 				raise
