@@ -1,8 +1,7 @@
 # Factorio Mod Portal
 
 This script is a command line tool that downloads factorio mods 
-from the official mod portal ~~**even with a non-paid account**~~ 
-(only working for paid accounts currently, see <b>EDIT 2</b> in the announcement below).
+from the official mod portal **even with a non-paid account**.
 
 ## Updates
 Check the [CHANGELOG.md](CHANGELOG.md) for updates regarding functionality and mirror availability.

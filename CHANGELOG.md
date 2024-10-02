@@ -7,9 +7,9 @@
 
 ### UPDATE 1: Sep 18 2022
 As of commit [47737b8](https://github.com/MRtecno98/FactorioModPortal/commit/47737b8dce319d288b87a20c50a6a25b5e749d27) i have actually managed to workaround this problem using other mirrors provided by @radioegor146 
+(at ~~https://1488.me~~), thanks a lot :)
 
 ### UPDATE 2: Nov 21 2023
-(at ~~https://1488.me~~), thanks a lot :)
 As of recent developments(see issue [#5](https://github.com/MRtecno98/FactorioModPortal/issues/5)) it seems like the other mirrors went down too, possibly because they fixed the googleapis endpoint that was added in commit 
 [47737b8](https://github.com/MRtecno98/FactorioModPortal/commit/47737b8dce319d288b87a20c50a6a25b5e749d27)
 (see previous update and issue #4 for details), until some other way to download the mods comes up this tool goes back to be only working for paid accounts.
