@@ -43,8 +43,9 @@ def get_mod_info(name,detailed=False):
 	if not detailed:
 		match = [res for res in get_data_cache()["results"] if res["name"] == name]
 		if len(match) > 0:
-			match[0]["releases"] = [match[0].pop("latest_release"),]
-			return match[0]
+			match = dict(match[0])
+			match["releases"] = [match.pop("latest_release"),]
+			return match
 
 	query = "https://mods.factorio.com/api/mods/" + name.replace(" ", "%20") + ("/full" if detailed else "")
 	request = requests.get(query)
