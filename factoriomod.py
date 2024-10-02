@@ -11,13 +11,16 @@ MAX_WORDS_PER_LINE = 7
 USER_AGENT = "python-factoriomod"
 
 FALLBACK_MIRRORS = [
-	["https://factorio-launcher-mods.storage.googleapis.com", 0],
-	["https://official-factorio-mirror.1488.me", 0], # Kindly mirrored by @radioegor146
+	# ["https://factorio-launcher-mods.storage.googleapis.com", 0], # Dead
+
+	# Kindly mirrored by @radioegor146
+	["https://official-factorio-mirror.re146.dev/", 0],
+	["https://mods-storage.re146.dev/", 0]
 ]
 
 cli = Console()
 
-title = """
+title = r"""
   _____          _             _         __  __           _   ____            _        _
  |  ___|_ _  ___| |_ ___  _ __(_) ___   |  \/  | ___   __| | |  _ \ ___  _ __| |_ __ _| |
  | |_ / _` |/ __| __/ _ \| '__| |/ _ \  | |\/| |/ _ \ / _` | | |_) / _ \| '__| __/ _` | |
