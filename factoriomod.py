@@ -554,8 +554,11 @@ def start():
 
 		print()
 
-		install_set(to_install)
-		shutil.copy(path, os.path.join(factorio_path, "mods", "mod-list.json"))
+		if check_factorio_path_set():
+			install_set(to_install)
+			shutil.copy(path, os.path.join(factorio_path, "mods", "mod-list.json"))
+		else:
+			cli.print("[green]Skipping installation because factorio path is not set[/green]")
 
 	elif opt == 4:
 		try:
