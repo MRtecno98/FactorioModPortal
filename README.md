@@ -12,4 +12,12 @@ This project is OLD, it does work and I sporadically fix issues and bugs, but it
 So don't expect too much from it.
 
 ## Usage
-To execute the tool you need Python 3 installed, you can execute it in the command line using the python interpreter
+To execute the tool you need Python 3 installed, first install the dependencies
+```bash
+pip install -r requirements.txt
+```
+
+Then you can run the script
+```bash
+python factoriomod.py
+```
